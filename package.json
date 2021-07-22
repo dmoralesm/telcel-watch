@@ -11,7 +11,21 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "@sentry/node": "^6.9.0",
+    "axios": "^0.21.1",
+    "axios-cookiejar-support": "^1.0.1",
+    "cron": "^1.8.2",
+    "debug": "^4.3.2",
+    "dotenv": "^10.0.0",
+    "node-cron": "^3.0.0",
+    "tough-cookie": "^4.0.0"
+  },
   "devDependencies": {
+    "@types/debug": "^4.1.6",
+    "@types/node": "^16.3.3",
+    "@types/node-cron": "^2.0.4",
+    "@types/tough-cookie": "^4.0.1",
     "husky": "^4.3.8",
     "lint-staged": "^11.0.1",
     "nodemon": "^2.0.12",
