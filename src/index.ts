@@ -9,18 +9,21 @@ import Sentry from './sentry';
 const MB_NOTIFY: number = 100;
 interface DataPlanHistory {
   [key: string]: {
-    prevMbUsados?: number
-    nextCheckPoint?: number
+    prevMbUsados?: number;
+    nextCheckPoint?: number;
   };
 }
 
 const history: DataPlanHistory = {};
+let doLoginNextRun: boolean = true;
 
 async function validateCookie() {
   const checkCookie = await telcel.get('https://wbl.telcel-id.com:8443/valida-cookie');
-  return checkCookie.status === 200
-    && checkCookie.data?.descripcion === 'Cookie valida'
-    &&  checkCookie.data?.estatus === 'ok'
+  return (
+    checkCookie.status === 200 &&
+    checkCookie.data?.descripcion === 'Cookie valida' &&
+    checkCookie.data?.estatus === 'ok'
+  );
 }
 
 async function getToken() {
@@ -28,51 +31,56 @@ async function getToken() {
     username: process.env.USERNAME,
     password: process.env.PASSWORD,
     sitedomain: 'https://www.mitelcel.com/mitelcel',
-    CCode: 52
+    CCode: 52,
   };
 
   const fetchToken = await telcel.get('https://wbl.telcel-id.com:8443/Auth', {
     params: {
-      ...loginPayload
-    }
+      ...loginPayload,
+    },
   });
 
   return fetchToken?.data?.token;
 }
 
 async function doLogin() {
-  const validCookie = await validateCookie();
-  if(!validCookie) {
-    infoLog('Trying to log in...');
-    const accessToken = await getToken();
-    const authPayload = querystring.stringify({
-      isTablet: 'false',
-      j_username: accessToken,
-      j_password: '',
-      goto: 'opcional',
-      fromTelcel: '',
-      origen: 'ssoWeblogin'
-    })
+  infoLog('Trying to log in...');
+  const accessToken = await getToken();
+  const authPayload = querystring.stringify({
+    isTablet: 'false',
+    j_username: accessToken,
+    j_password: '',
+    goto: 'opcional',
+    fromTelcel: '',
+    origen: 'ssoWeblogin',
+  });
 
-    const doAuth = await telcel.post('https://www.mitelcel.com/mitelcel/login/auth', authPayload);
-    const validNewCookie = await validateCookie();
-    if (validNewCookie) {
-      infoLog('Login successful...');
-    } else {
-      Sentry.captureException(new Error('Login failed'));
-      errorLog('Login failed...');
-    }
+  const doAuth = await telcel.post('https://www.mitelcel.com/mitelcel/login/auth', authPayload);
+  const validNewCookie = await validateCookie();
+  if (validNewCookie) {
+    infoLog('Login successful...');
+    doLoginNextRun = false;
+  } else {
+    Sentry.captureException(new Error('Login failed'));
+    errorLog('Login failed...');
   }
 }
 
 function sendNotification(text: string) {
-  if(!text) return;
-  telegram.post('sendMessage', { chat_id: process.env.CHAT_ID, text: text })
+  if (!text) return;
+  telegram.post('sendMessage', { chat_id: process.env.CHAT_ID, text: text });
 }
 
 async function main() {
   try {
-    const apiResponse = await telcel.get(`https://www.mitelcel.com/mitelcel/mitelcel-api-web/api/postpago/internet/consumo/${process.env.USERNAME}?_=${Date.now()}`);
+    if (doLoginNextRun) {
+      await doLogin();
+    }
+    const apiResponse = await telcel.get(
+      `https://www.mitelcel.com/mitelcel/mitelcel-api-web/api/postpago/internet/consumo/${
+        process.env.USERNAME
+      }?_=${Date.now()}`
+    );
     const isJsonResponse = apiResponse.headers['content-type'].startsWith('application/json');
 
     if (isJsonResponse) {
@@ -80,7 +88,7 @@ async function main() {
 
       for (const dataPlan of dataPlans) {
         if (!history[dataPlan.clave]) {
-          history[dataPlan.clave] = {}
+          history[dataPlan.clave] = {};
         }
 
         debugLog(dataPlan.clave, 'MB usados:', dataPlan.mbUsados);
@@ -91,12 +99,11 @@ async function main() {
 
         if (dataPlan.mbUsados < prevMbUsados) {
           debugLog('New data plan');
-          history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY
-          notificationText = `📈 Nuevo paquete de datos! \n⬆️ ${dataPlan.mbDisponibles} MB disponibles`
-        }
-        else if (dataPlan.mbUsados > nextCheckPoint) {
+          history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
+          notificationText = `📈 Nuevo paquete de datos! \n⬆️ ${dataPlan.mbDisponibles} MB disponibles`;
+        } else if (dataPlan.mbUsados > nextCheckPoint) {
           debugLog('New data update');
-          history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY
+          history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
           notificationText = `⬇️ ${dataPlan.mbUsados} MB usados (${dataPlan.porcentajeConsumido}%)`;
         }
 
@@ -112,16 +119,14 @@ async function main() {
     } else {
       throw new Error('Invalid response. Response type: ' + apiResponse.headers['content-type']);
     }
-
-  }
-  catch (error) {
+  } catch (error) {
     Sentry.captureException(error);
-    errorLog(error);
-    doLogin();
+    errorLog(error.message);
+    doLoginNextRun = true;
   }
 }
 
-// Every 5 minutes
-cron.schedule('*/5 * * * *', () => {
-  main()
+// Every minute
+cron.schedule('* * * * *', () => {
+  main();
 });
