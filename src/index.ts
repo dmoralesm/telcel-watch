@@ -71,7 +71,7 @@ function sendNotification(text: string) {
   telegram.post('sendMessage', { chat_id: process.env.CHAT_ID, text: text });
 }
 
-async function main() {
+async function main(forceNotification: boolean = false) {
   try {
     if (doLoginNextRun) {
       await doLogin();
@@ -101,9 +101,11 @@ async function main() {
           debugLog('New data plan');
           history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
           notificationText = `📈 Nuevo paquete de datos! \n⬆️ ${dataPlan.mbDisponibles} MB disponibles`;
-        } else if (dataPlan.mbUsados > nextCheckPoint) {
+        } else if (forceNotification || dataPlan.mbUsados > nextCheckPoint) {
           debugLog('New data update');
-          history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
+          if (!forceNotification) {
+            history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
+          }
           notificationText = `⬇️ ${dataPlan.mbUsados} MB usados (${dataPlan.porcentajeConsumido}%)`;
         }
 
@@ -129,4 +131,9 @@ async function main() {
 // Every minute
 cron.schedule('* * * * *', () => {
   main();
+});
+
+// Every day at 7:01 AM
+cron.schedule('1 7 * * *', () => {
+  main(true);
 });
