@@ -6,7 +6,7 @@ import { infoLog, errorLog, debugLog } from './debug';
 import Sentry from './sentry';
 
 // Notify each MB_NOTIFY
-const MB_NOTIFY: number = 100;
+// const MB_NOTIFY: number = 100;
 interface DataPlanHistory {
   [key: string]: {
     prevMbUsados?: number;
@@ -95,16 +95,16 @@ async function main(forceNotification: boolean = false) {
 
         let notificationText: string = '';
         const prevMbUsados = history[dataPlan.clave].prevMbUsados || 0;
-        const nextCheckPoint = history[dataPlan.clave].nextCheckPoint || 0;
+        // const nextCheckPoint = history[dataPlan.clave].nextCheckPoint || 0;
 
         if (dataPlan.mbUsados < prevMbUsados) {
           debugLog('New data plan');
-          history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
+          // history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
           notificationText = `📈 Nuevo paquete de datos! \n⬆️ ${dataPlan.mbDisponibles} MB disponibles`;
-        } else if (forceNotification || dataPlan.mbUsados > nextCheckPoint) {
+        } else if (forceNotification || dataPlan.mbUsados > prevMbUsados) {
           debugLog('New data update');
           if (!forceNotification) {
-            history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
+            // history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
           }
           notificationText = `⬇️ ${dataPlan.mbUsados} MB usados (${dataPlan.porcentajeConsumido}%)`;
         }
@@ -128,12 +128,7 @@ async function main(forceNotification: boolean = false) {
   }
 }
 
-// Every minute
-cron.schedule('* * * * *', () => {
+// At every minute past every hour from 7 through 23.
+cron.schedule('* 7-23 * * *', () => {
   main();
-});
-
-// Every day at 7:01 AM
-cron.schedule('1 7 * * *', () => {
-  main(true);
 });
