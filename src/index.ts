@@ -85,39 +85,47 @@ async function main(forceNotification: boolean = false) {
 
     if (isJsonResponse) {
       const dataPlans = apiResponse.data.response?.data?.consumos || [];
+      const summaryPlan = dataPlans.reduce((a: any, b: any) => ({
+        mbTotales: a.mbTotales + b.mbTotales,
+        mbUsados: a.mbUsados + b.mbUsados,
+      }));
 
-      for (const dataPlan of dataPlans) {
-        if (!history[dataPlan.clave]) {
-          history[dataPlan.clave] = {};
-        }
+      summaryPlan.clave = 'summary';
+      summaryPlan.porcentajeConsumido = Math.floor((summaryPlan.mbUsados / summaryPlan.mbTotales) * 100);
 
-        debugLog(dataPlan.clave, 'MB usados:', dataPlan.mbUsados);
+      dataPlans['summary'] = summaryPlan;
 
-        let notificationText: string = '';
-        const prevMbUsados = history[dataPlan.clave].prevMbUsados || 0;
-        const nextCheckPoint = history[dataPlan.clave].nextCheckPoint || 0;
-
-        if (dataPlan.mbUsados < prevMbUsados) {
-          debugLog('New data plan');
-          history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
-          notificationText = `📈 Nuevo paquete de datos! \n⬆️ ${dataPlan.mbDisponibles} MB disponibles`;
-        } else if (forceNotification || dataPlan.mbUsados > nextCheckPoint) {
-          debugLog('New data update');
-          if (!forceNotification) {
-            history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
-          }
-          notificationText = `⬇️ ${dataPlan.mbUsados} MB usados (${dataPlan.porcentajeConsumido}%)`;
-        }
-
-        if (notificationText) {
-          debugLog(notificationText);
-          sendNotification(notificationText);
-          notificationText = '';
-        }
-
-        // Save history
-        history[dataPlan.clave].prevMbUsados = dataPlan.mbUsados;
+      const dataPlan = summaryPlan;
+      if (!history[dataPlan.clave]) {
+        history[dataPlan.clave] = {};
       }
+
+      debugLog(dataPlan.clave, 'MB usados:', dataPlan.mbUsados);
+
+      let notificationText: string = '';
+      const prevMbUsados = history[dataPlan.clave].prevMbUsados || 0;
+      const nextCheckPoint = history[dataPlan.clave].nextCheckPoint || 0;
+
+      if (dataPlan.mbUsados < prevMbUsados) {
+        debugLog('New data plan');
+        history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
+        notificationText = `📈 Nuevo paquete de datos! \n⬆️ ${dataPlan.mbDisponibles} MB disponibles`;
+      } else if (forceNotification || dataPlan.mbUsados > nextCheckPoint) {
+        debugLog('New data update');
+        if (!forceNotification) {
+          history[dataPlan.clave].nextCheckPoint = Math.ceil(dataPlan.mbUsados / MB_NOTIFY) * MB_NOTIFY;
+        }
+        notificationText = `⬇️ ${dataPlan.mbUsados} MB usados (${dataPlan.porcentajeConsumido}%)`;
+      }
+
+      if (notificationText) {
+        debugLog(notificationText);
+        sendNotification(notificationText);
+        notificationText = '';
+      }
+
+      // Save history
+      history[dataPlan.clave].prevMbUsados = dataPlan.mbUsados;
     } else {
       throw new Error('Invalid response. Response type: ' + apiResponse.headers['content-type']);
     }
