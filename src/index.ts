@@ -128,7 +128,7 @@ async function main(forceNotification: boolean = false) {
   }
 }
 
-// At every minute past every hour from 7 through 23.
+// At every minute past every hour from 8 through 23.
 cron.schedule('* 8-23 * * *', () => {
   main();
 });
